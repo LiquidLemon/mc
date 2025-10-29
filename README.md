@@ -17,7 +17,7 @@ Self-hosted Fabric Minecraft server with mods baked into the Docker image.
 ```
 .
 ├── build/                    # Build files (only this directory is copied to Docker)
-│   ├── mods.txt             # List of mod download URLs
+│   ├── mods.txt             # List of mod download URLs (generated)
 │   ├── download-mods.sh     # Script to download mods during build
 │   └── entrypoint.sh        # Server startup script
 ├── .github/
@@ -25,6 +25,7 @@ Self-hosted Fabric Minecraft server with mods baked into the Docker image.
 │       └── build.yml        # GitHub Actions workflow
 ├── Dockerfile               # Multi-stage Docker build
 ├── docker-compose.yml       # Local development setup
+├── generate_mods.py         # Script to generate mods.txt from Modrinth
 ├── .dockerignore            # Whitelist: only build/ is copied
 └── README.md
 ```

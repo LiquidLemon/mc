@@ -2,28 +2,36 @@
 # This image contains the Fabric server and mods baked in
 
 # Build arguments for versions
-ARG MINECRAFT_VERSION=1.21.10
+ARG MINECRAFT_VERSION=1.21.9
 ARG FABRIC_LOADER_VERSION=0.17.3
 ARG JAVA_VERSION=21
 ARG FABRIC_INSTALLER_VERSION=1.1.0
 
-# Stage 1: Download Fabric server
-FROM eclipse-temurin:${JAVA_VERSION}-jre-jammy AS fabric-downloader
+# Stage 1: Install Fabric server using CLI installer
+FROM eclipse-temurin:${JAVA_VERSION}-jre-jammy AS fabric-builder
 
 ARG MINECRAFT_VERSION
 ARG FABRIC_LOADER_VERSION
 ARG FABRIC_INSTALLER_VERSION
 
-WORKDIR /build
+WORKDIR /server
 
 # Install dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# Download Fabric server launcher
-RUN curl -L -o fabric-server-launch.jar \
-    "https://meta.fabricmc.net/v2/versions/loader/${MINECRAFT_VERSION}/${FABRIC_LOADER_VERSION}/${FABRIC_INSTALLER_VERSION}/server/jar"
+# Download Fabric installer
+RUN curl -L -o fabric-installer.jar \
+    "https://maven.fabricmc.net/net/fabricmc/fabric-installer/${FABRIC_INSTALLER_VERSION}/fabric-installer-${FABRIC_INSTALLER_VERSION}.jar"
+
+# Run Fabric installer to set up server (downloads server jar and libraries)
+RUN java -jar fabric-installer.jar server \
+    -mcversion ${MINECRAFT_VERSION} \
+    -loader ${FABRIC_LOADER_VERSION} \
+    -downloadMinecraft && \
+    rm fabric-installer.jar && \
+    ls -lh
 
 # Stage 2: Download mods
 FROM eclipse-temurin:${JAVA_VERSION}-jre-jammy AS mod-downloader
@@ -61,11 +69,10 @@ RUN groupadd -r -g 1000 minecraft && \
 
 WORKDIR /server
 
-# Copy Fabric server from downloader stage
-COPY --from=fabric-downloader --chown=minecraft:minecraft /build/fabric-server-launch.jar ./
+# Copy Fabric server files from builder stage (includes server.jar, libraries/, and fabric-server-launch.jar)
+COPY --from=fabric-builder --chown=minecraft:minecraft /server ./
 
-# Create mods directory and copy mods
-RUN mkdir -p mods
+# Copy mods from mod-downloader stage
 COPY --from=mod-downloader --chown=minecraft:minecraft /mods/*.jar ./mods/
 
 # Accept EULA
