@@ -1,0 +1,10 @@
+# Fabric Mods to Download
+# Format: One direct download URL per line
+# Lines starting with # are comments and will be ignored
+# Empty lines are ignored
+
+# Example mod URLs (replace with your desired mods):
+# https://cdn.modrinth.com/data/AANobbMI/versions/xyz/sodium-fabric-0.5.8+mc1.21.jar
+# https://cdn.modrinth.com/data/gvQqBUqZ/versions/abc/lithium-fabric-mc1.21-0.12.7.jar
+
+# Add your mod download URLs below:

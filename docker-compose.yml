@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  minecraft:
+    build: .
+    image: ghcr.io/liquidlemon/mc:latest
+    container_name: minecraft-server
+    ports:
+      - "25565:25565"
+    volumes:
+      - ./data/world:/server/world
+      - ./data/world_nether:/server/world_nether
+      - ./data/world_the_end:/server/world_the_end
+      - ./data/logs:/server/logs
+      - ./data/config:/server/config
+    environment:
+      - MEMORY_MAX=4G
+      - MEMORY_MIN=4G
+      - JVM_OPTS=
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+        reservations:
+          memory: 4G
