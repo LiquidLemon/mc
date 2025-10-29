@@ -23,12 +23,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Generate mods list
+        run: uv run --no-project build.py --generate-only
+
       - name: Log in to Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Load config versions
+        id: config
+        run: |
+          MINECRAFT_VERSION=$(grep 'minecraft =' config.toml | sed 's/.*= "\(.*\)"/\1/')
+          FABRIC_LOADER=$(grep 'fabric_loader =' config.toml | sed 's/.*= "\(.*\)"/\1/')
+          FABRIC_INSTALLER=$(grep 'fabric_installer =' config.toml | sed 's/.*= "\(.*\)"/\1/')
+          JAVA_VERSION=$(grep 'java =' config.toml | sed 's/.*= "\(.*\)"/\1/')
+          echo "minecraft=$MINECRAFT_VERSION" >> $GITHUB_OUTPUT
+          echo "fabric_loader=$FABRIC_LOADER" >> $GITHUB_OUTPUT
+          echo "fabric_installer=$FABRIC_INSTALLER" >> $GITHUB_OUTPUT
+          echo "java=$JAVA_VERSION" >> $GITHUB_OUTPUT
 
       - name: Extract metadata
         id: meta
@@ -47,3 +65,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            MINECRAFT_VERSION=${{ steps.config.outputs.minecraft }}
+            FABRIC_LOADER_VERSION=${{ steps.config.outputs.fabric_loader }}
+            FABRIC_INSTALLER_VERSION=${{ steps.config.outputs.fabric_installer }}
+            JAVA_VERSION=${{ steps.config.outputs.java }}

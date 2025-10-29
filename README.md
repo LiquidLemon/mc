@@ -22,10 +22,11 @@ Self-hosted Fabric Minecraft server with mods baked into the Docker image.
 │   └── entrypoint.sh        # Server startup script
 ├── .github/
 │   └── workflows/
-│       └── build.yml        # GitHub Actions workflow
+│       └── build.yml        # GitHub Actions workflow (auto-builds on push)
+├── config.toml              # Configuration: versions and mod list
+├── build.py                 # Build script: validates mods, generates list, builds image
 ├── Dockerfile               # Multi-stage Docker build
-├── docker-compose.yml       # Local development setup
-├── generate_mods.py         # Script to generate mods.txt from Modrinth
+├── docker-compose.yml       # Local testing only
 ├── .dockerignore            # Whitelist: only build/ is copied
 └── README.md
 ```
@@ -70,32 +71,39 @@ docker compose up -d
 ### Prerequisites
 
 - Docker
-- Bash (for mod download script)
+- Python 3.12+ with uv
 
 ### Build Process
 
-1. **Add mods to download**: Edit [build/mods.txt](build/mods.txt) and add direct download URLs for your desired mods (one per line)
+1. **Configure versions and mods**: Edit [config.toml](config.toml)
 
-   Example:
+   ```toml
+   [versions]
+   minecraft = "1.21.3"
+   fabric_loader = "0.16.9"
+   fabric_installer = "1.0.1"
+   java = "21"
+
+   [mods]
+   list = [
+       "lithium",
+       "fabric-api",
+       "sodium",
+   ]
    ```
-   https://cdn.modrinth.com/data/AANobbMI/versions/xyz/sodium-fabric-0.5.8+mc1.21.jar
-   https://cdn.modrinth.com/data/gvQqBUqZ/versions/abc/lithium-fabric-mc1.21-0.12.7.jar
-   ```
+
+   Find mod slugs at [modrinth.com/mods](https://modrinth.com/mods)
 
 2. **Build the image**:
 
    ```bash
-   docker build -t minecraft-server .
+   uv run build.py
    ```
 
-   With custom versions:
-   ```bash
-   docker build \
-     --build-arg MINECRAFT_VERSION=1.21.3 \
-     --build-arg FABRIC_LOADER_VERSION=0.16.9 \
-     --build-arg JAVA_VERSION=21 \
-     -t minecraft-server .
-   ```
+   This will:
+   - Validate all mods are available for the Minecraft version
+   - Generate `build/mods.txt` with download URLs
+   - Build the Docker image with configured versions
 
 3. **Run locally**:
 
@@ -105,7 +113,7 @@ docker compose up -d
      -p 25565:25565 \
      -v $(pwd)/data/world:/server/world \
      -v $(pwd)/data/logs:/server/logs \
-     minecraft-server
+     minecraft-server:latest
    ```
 
 ## Configuration
@@ -118,13 +126,12 @@ docker compose up -d
 | `MEMORY_MIN` | `4G` | Minimum JVM heap size |
 | `JVM_OPTS` | _(empty)_ | Additional JVM options |
 
-### Build Arguments
+### config.toml
 
-| Argument | Default | Description |
-|----------|---------|-------------|
-| `MINECRAFT_VERSION` | `1.21.3` | Minecraft version |
-| `FABRIC_LOADER_VERSION` | `0.16.9` | Fabric loader version |
-| `JAVA_VERSION` | `21` | Java version for base image |
+All build configuration is in [config.toml](config.toml):
+
+- **versions**: Minecraft, Fabric loader, Fabric installer, and Java versions
+- **mods.list**: Array of mod slugs from Modrinth
 
 ### Volumes
 
@@ -138,30 +145,39 @@ Mount these directories to persist data:
 
 ## Adding/Updating Mods
 
-1. Edit [build/mods.txt](build/mods.txt) with new mod URLs
-2. Rebuild the Docker image
-3. Push to GHCR (automatic via GitHub Actions on push to main)
-4. Pull the new image and restart your server
+1. Find mod slug on [modrinth.com/mods](https://modrinth.com/mods)
+   - The slug is in the URL: `modrinth.com/mod/[slug]`
+   - Example: "lithium" from `modrinth.com/mod/lithium`
 
-## Finding Mod Download URLs
+2. Add the slug to `config.toml`:
+   ```toml
+   [mods]
+   list = [
+       "lithium",
+       "fabric-api",
+       "your-new-mod",  # Add here
+   ]
+   ```
 
-### Modrinth
-1. Go to [modrinth.com](https://modrinth.com)
-2. Find your mod
-3. Click on the version you want
-4. Right-click the download button and copy the link
+3. Rebuild the image:
+   ```bash
+   uv run build.py
+   ```
 
-### CurseForge
-1. Go to [curseforge.com](https://www.curseforge.com/minecraft/mc-mods)
-2. Find your mod
-3. Go to Files tab
-4. Click the download icon and copy the direct link
+The build script will automatically:
+- Validate the mod is available for your Minecraft version
+- Fetch the latest compatible version
+- Add it to the Docker image
 
-### Important Notes
-- Ensure mods are compatible with your Minecraft version
-- Most Fabric mods require Fabric API
-- Server-side mods are different from client-side mods
-- Always verify mod sources are legitimate
+## Updating Versions
+
+To update Minecraft or Fabric versions:
+
+1. Edit [config.toml](config.toml)
+2. Run `uv run build.py`
+3. The script will validate all mods are compatible with the new version
+
+If any mods are incompatible, the build will fail with a clear error message.
 
 ## GitHub Actions Setup
 
@@ -184,9 +200,15 @@ The repository includes a GitHub Actions workflow that automatically builds and 
 
 ### Triggering Builds
 
-- **Automatic**: Push to `main` branch
+- **Automatic**: Push to `main` branch (after editing `config.toml`)
 - **Manual**: Go to Actions tab → Build and Push Docker Image → Run workflow
 - **Tagged releases**: Push a tag like `v1.0.0` for versioned images
+
+The workflow automatically:
+1. Installs uv
+2. Runs `uv run build.py --generate-only` to create `build/mods.txt`
+3. Reads versions from `config.toml`
+4. Builds and pushes the Docker image with proper tags
 
 ## Server Management
 

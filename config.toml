@@ -1,0 +1,17 @@
+# Minecraft Server Configuration
+
+[versions]
+minecraft = "1.21.9"
+fabric_loader = "0.17.3"
+fabric_installer = "1.1.0"
+java = "21"
+
+[mods]
+# List of mod slugs from Modrinth
+# Find mod slugs at https://modrinth.com/mods
+list = [
+    "lithium",
+    "krypton",
+    "fabric-api",
+    "chunky",
+]
