@@ -171,7 +171,30 @@ The build script will automatically:
 
 ## Updating Versions
 
-To update Minecraft or Fabric versions:
+### Automatic Updates
+
+Update to the latest compatible versions automatically:
+
+```bash
+uv run build.py --update
+```
+
+This will:
+1. Find the **latest Minecraft version** that supports all your mods
+2. Get the latest Fabric loader and installer versions
+3. Update `config.toml` with these versions
+4. Validate all mods are available
+5. Build the Docker image
+
+**Preview updates without modifying files:**
+
+```bash
+uv run build.py --update --dry-run
+```
+
+### Manual Updates
+
+To manually update versions:
 
 1. Edit [config.toml](config.toml)
 2. Run `uv run build.py`

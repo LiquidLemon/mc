@@ -25,8 +25,142 @@ import requests
 
 # Constants
 API_BASE = "https://api.modrinth.com/v2"
+FABRIC_META_BASE = "https://meta.fabricmc.net/v2"
 USER_AGENT = "yakub/minecraft-server-docker/1.0 (build.py)"
 LOADER = "fabric"
+
+
+def find_compatible_minecraft_version(mod_list: list[str]) -> str | None:
+    """
+    Find the latest Minecraft version that supports all mods.
+
+    Args:
+        mod_list: List of mod slugs
+
+    Returns:
+        Latest compatible Minecraft version, or None if no version supports all mods
+    """
+    headers = {"User-Agent": USER_AGENT}
+
+    try:
+        # Get all stable Minecraft versions
+        response = requests.get(f"{FABRIC_META_BASE}/versions/game", headers=headers, timeout=10)
+        response.raise_for_status()
+        game_versions = response.json()
+        stable_versions = [v["version"] for v in game_versions if v.get("stable", False)]
+
+        print(f"  Testing {len(stable_versions)} stable Minecraft versions...\n")
+
+        # Try each version from newest to oldest
+        for mc_version in stable_versions:
+            all_compatible = True
+
+            for slug in mod_list:
+                available, _ = check_mod_availability(slug, mc_version, LOADER)
+                if not available:
+                    all_compatible = False
+                    break
+
+            if all_compatible:
+                print(f"  ✓ Found compatible version: {mc_version}")
+                print(f"    All {len(mod_list)} mods are available for this version\n")
+                return mc_version
+
+        return None
+
+    except requests.RequestException as e:
+        print(f"  ⚠ Error checking compatibility: {e}", file=sys.stderr)
+        return None
+
+
+def get_latest_versions() -> dict:
+    """
+    Fetch the latest stable versions from Fabric Meta API.
+
+    Returns:
+        Dictionary with latest versions
+    """
+    headers = {"User-Agent": USER_AGENT}
+
+    try:
+        # Get latest stable Minecraft version
+        response = requests.get(f"{FABRIC_META_BASE}/versions/game", headers=headers, timeout=10)
+        response.raise_for_status()
+        game_versions = response.json()
+        minecraft_version = next((v["version"] for v in game_versions if v.get("stable", False)), None)
+
+        # Get latest stable Fabric loader
+        response = requests.get(f"{FABRIC_META_BASE}/versions/loader", headers=headers, timeout=10)
+        response.raise_for_status()
+        loader_versions = response.json()
+        loader_version = next((v["version"] for v in loader_versions if v.get("stable", False)), None)
+
+        # Get latest stable Fabric installer
+        response = requests.get(f"{FABRIC_META_BASE}/versions/installer", headers=headers, timeout=10)
+        response.raise_for_status()
+        installer_versions = response.json()
+        installer_version = next((v["version"] for v in installer_versions if v.get("stable", False)), None)
+
+        return {
+            "minecraft": minecraft_version,
+            "fabric_loader": loader_version,
+            "fabric_installer": installer_version,
+        }
+
+    except requests.RequestException as e:
+        print(f"❌ Error fetching latest versions: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def update_config_versions(latest_versions: dict, dry_run: bool = False) -> None:
+    """
+    Update config.toml with latest versions.
+
+    Args:
+        latest_versions: Dictionary with minecraft, fabric_loader, fabric_installer keys
+        dry_run: If True, only show what would be updated without modifying the file
+    """
+    config_path = Path(__file__).parent / "config.toml"
+
+    # Read current config
+    with config_path.open("r") as f:
+        content = f.read()
+
+    # Replace version values
+    import re
+
+    content = re.sub(
+        r'minecraft = "[^"]*"',
+        f'minecraft = "{latest_versions["minecraft"]}"',
+        content,
+    )
+    content = re.sub(
+        r'fabric_loader = "[^"]*"',
+        f'fabric_loader = "{latest_versions["fabric_loader"]}"',
+        content,
+    )
+    content = re.sub(
+        r'fabric_installer = "[^"]*"',
+        f'fabric_installer = "{latest_versions["fabric_installer"]}"',
+        content,
+    )
+
+    if dry_run:
+        print("✓ Would update config.toml with latest versions (dry-run):")
+        print(f"  Minecraft: {latest_versions['minecraft']}")
+        print(f"  Fabric Loader: {latest_versions['fabric_loader']}")
+        print(f"  Fabric Installer: {latest_versions['fabric_installer']}")
+        print()
+    else:
+        # Write back
+        with config_path.open("w") as f:
+            f.write(content)
+
+        print("✓ Updated config.toml with latest versions:")
+        print(f"  Minecraft: {latest_versions['minecraft']}")
+        print(f"  Fabric Loader: {latest_versions['fabric_loader']}")
+        print(f"  Fabric Installer: {latest_versions['fabric_installer']}")
+        print()
 
 
 def load_config() -> dict:
@@ -243,12 +377,60 @@ def main() -> int:
         action="store_true",
         help="Only generate mods.txt without building Docker image",
     )
+    parser.add_argument(
+        "--update",
+        action="store_true",
+        help="Update config.toml with latest stable versions before building",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be done without actually modifying files or building",
+    )
     args = parser.parse_args()
 
     print("=" * 70)
     print("Fabric Minecraft Server - Docker Build")
+    if args.dry_run:
+        print(" (DRY RUN - No changes will be made)")
     print("=" * 70)
     print()
+
+    # If --update flag is set, fetch and update versions first
+    if args.update:
+        # Load current mod list
+        current_config = load_config()
+        mod_list = current_config["mods"]["list"]
+
+        print("🔄 Finding latest compatible versions...\n")
+
+        # Find the latest Minecraft version that supports all mods
+        print("  Finding latest Minecraft version compatible with all mods...")
+        compatible_mc_version = find_compatible_minecraft_version(mod_list)
+
+        if not compatible_mc_version:
+            print("❌ Could not find any Minecraft version that supports all mods!", file=sys.stderr)
+            return 1
+
+        # Get latest Fabric loader and installer
+        print("  Fetching latest Fabric loader and installer versions...\n")
+        response = requests.get(f"{FABRIC_META_BASE}/versions/loader", headers={"User-Agent": USER_AGENT}, timeout=10)
+        response.raise_for_status()
+        loader_versions = response.json()
+        loader_version = next((v["version"] for v in loader_versions if v.get("stable", False)), None)
+
+        response = requests.get(f"{FABRIC_META_BASE}/versions/installer", headers={"User-Agent": USER_AGENT}, timeout=10)
+        response.raise_for_status()
+        installer_versions = response.json()
+        installer_version = next((v["version"] for v in installer_versions if v.get("stable", False)), None)
+
+        latest_versions = {
+            "minecraft": compatible_mc_version,
+            "fabric_loader": loader_version,
+            "fabric_installer": installer_version,
+        }
+
+        update_config_versions(latest_versions, dry_run=args.dry_run)
 
     # Load configuration
     config = load_config()
@@ -267,15 +449,21 @@ def main() -> int:
     if not validate_mods(mod_list, versions["minecraft"]):
         return 1
 
-    # Generate mods file
-    mod_count = generate_mods_file(mod_list, versions["minecraft"])
-    if mod_count == 0:
-        print("❌ No mods were successfully added!", file=sys.stderr)
-        return 1
+    # Generate mods file (skip if dry-run)
+    if not args.dry_run:
+        mod_count = generate_mods_file(mod_list, versions["minecraft"])
+        if mod_count == 0:
+            print("❌ No mods were successfully added!", file=sys.stderr)
+            return 1
+    else:
+        print("📥 Would generate build/mods.txt with mod download URLs (dry-run)\n")
 
-    # If --generate-only flag is set, stop here
-    if args.generate_only:
-        print("✓ Mods list generated successfully!")
+    # If --generate-only or --dry-run flag is set, stop here
+    if args.generate_only or args.dry_run:
+        if args.dry_run:
+            print("✓ Dry-run complete! No changes were made.")
+        else:
+            print("✓ Mods list generated successfully!")
         return 0
 
     # Build Docker image
