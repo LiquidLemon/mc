@@ -29,11 +29,22 @@ else
 fi
 echo ""
 
-# Accept server resource pack prompt if using one (optional)
-# This prevents server from waiting for input on first startup
+# Check for server.properties and provide RCON info
 if [ ! -f "server.properties" ]; then
     echo "No server.properties found - will be generated on first startup"
+    echo ""
+    echo "To enable RCON for remote management, add these to server.properties:"
+    echo "  enable-rcon=true"
+    echo "  rcon.port=25575"
+    echo "  rcon.password=YOUR_SECURE_PASSWORD"
+else
+    # Check if RCON is enabled
+    if grep -q "^enable-rcon=true" server.properties 2>/dev/null; then
+        echo "RCON is enabled for remote management"
+        echo "  Use: rcon-cli <command>"
+    fi
 fi
+echo ""
 
 echo "Starting Minecraft server..."
 echo "=========================================="

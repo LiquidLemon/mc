@@ -7,6 +7,7 @@ services:
     container_name: minecraft-server
     ports:
       - "25565:25565"
+      - "25575:25575"  # RCON port
     volumes:
       - ./data/world:/server/world
       - ./data/world_nether:/server/world_nether

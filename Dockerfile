@@ -63,6 +63,17 @@ LABEL org.opencontainers.image.description="Self-hosted Fabric Minecraft server 
 LABEL org.opencontainers.image.version="${MINECRAFT_VERSION}-fabric-${FABRIC_LOADER_VERSION}"
 LABEL org.opencontainers.image.source="https://github.com/YOUR_USERNAME/YOUR_REPO"
 
+# Install rcon-cli for remote server management
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends wget ca-certificates && \
+    wget -O /tmp/rcon-cli.tar.gz https://github.com/itzg/rcon-cli/releases/download/1.6.7/rcon-cli_1.6.7_linux_amd64.tar.gz && \
+    tar -xzf /tmp/rcon-cli.tar.gz -C /usr/local/bin && \
+    chmod +x /usr/local/bin/rcon-cli && \
+    rm /tmp/rcon-cli.tar.gz && \
+    apt-get remove -y wget && \
+    apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
+
 # Create non-root user
 RUN groupadd -r -g 1000 minecraft && \
     useradd -r -u 1000 -g minecraft minecraft
@@ -90,8 +101,9 @@ RUN mkdir -p /server/world /server/logs /server/config && \
 # Switch to non-root user
 USER minecraft
 
-# Expose Minecraft server port
+# Expose Minecraft server port and RCON port
 EXPOSE 25565
+EXPOSE 25575
 
 # Environment variables for configuration
 ENV MEMORY_MAX=4G \

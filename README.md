@@ -235,6 +235,43 @@ The workflow automatically:
 
 ## Server Management
 
+### Remote Management with RCON
+
+The server includes `rcon-cli` for remote administration. To enable RCON:
+
+1. **Enable RCON** by adding to your `server.properties`:
+   ```properties
+   enable-rcon=true
+   rcon.port=25575
+   rcon.password=YOUR_SECURE_PASSWORD
+   ```
+
+2. **Expose the RCON port** when running:
+   ```bash
+   docker run -d \
+     -p 25565:25565 \
+     -p 25575:25575 \
+     ...
+   ```
+
+3. **Use rcon-cli** to send commands:
+   ```bash
+   # From inside the container
+   docker exec minecraft rcon-cli list
+   docker exec minecraft rcon-cli stop
+   docker exec minecraft rcon-cli "say Server restarting in 5 minutes"
+
+   # Or with environment variable
+   docker exec -e RCON_PASSWORD=your_password minecraft rcon-cli list
+   ```
+
+**Common RCON commands:**
+- `list` - List online players
+- `stop` - Stop the server gracefully
+- `save-all` - Force save the world
+- `whitelist add <player>` - Add player to whitelist
+- `op <player>` - Give operator permissions
+
 ### Viewing Logs
 
 ```bash
