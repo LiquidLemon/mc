@@ -9,7 +9,8 @@ java = "21"
 # Find mod slugs at https://modrinth.com/mods
 list = [
     "lithium",
-    #"krypton", # does not support 1.21.10 yet
+    "krypton",
     "fabric-api",
     "chunky",
+    "simple-voice-chat",
 ]
